@@ -1,0 +1,146 @@
+module Bank where
+
+template BankAccount
+  with
+    bank : Party
+    accountOwner : Party
+    balance : Numeric 2
+  where
+    signatory bank
+    observer accountOwner
+    key (bank, accountOwner) : (Party, Party)
+    maintainer key._1
+
+    choice Deposit : ContractId BankAccount
+      with
+        amount : Numeric 2
+      controller accountOwner
+      do
+        create this with
+          bank
+          accountOwner
+          balance = balance + amount
+    
+    choice Withdraw : ContractId BankAccount
+      with
+        amount : Numeric 2
+      controller accountOwner
+      do
+        create this with
+          bank
+          accountOwner
+          balance = balance - amount
+
+    nonconsuming choice Transfer : (ContractId BankAccount, ContractId BankAccount)
+      with
+        to : Party
+        amount : Numeric 2
+      controller bank
+      do
+        assertMsg "Insufficient funds" (balance >= amount)
+        assertMsg "Cannot transfer to same account" (to /= accountOwner)
+
+        mReceiver <- lookupByKey @BankAccount (bank, to)
+
+        receiverCid <- case mReceiver of
+          Some cid -> return cid
+          None -> abort "Receiver does not have an account"
+
+        receiverAccount <- fetch receiverCid
+
+        let senderOwner = accountOwner
+        let receiverOwner = receiverAccount.accountOwner
+        let receiverBalance = receiverAccount.balance
+
+        archive self
+        archive receiverCid
+
+        senderCid <- create BankAccount with
+          bank
+          accountOwner = senderOwner
+          balance = balance - amount
+
+        newReceiverCid <- create BankAccount with
+          bank
+          accountOwner = receiverOwner
+          balance = receiverBalance + amount
+
+        return (senderCid, newReceiverCid)
+        
+template BankService
+  with
+    bank : Party
+    customers : [Party]
+  where
+    signatory bank
+    observer customers
+
+    nonconsuming choice OpenAccount : ContractId BankAccount
+      with
+        accountOwner : Party
+      controller bank
+      do
+        existing <- lookupByKey @BankAccount (bank, accountOwner)
+
+        case existing of
+          Some cid -> return cid
+          None ->
+            create BankAccount with
+              bank
+              accountOwner
+              balance = 0.0
+
+    nonconsuming choice PayReward : ContractId BankAccount
+      with
+        accountCid : ContractId BankAccount
+        reward : Numeric 2
+      controller bank
+      do
+        account <- fetch accountCid
+        archive accountCid
+
+        create BankAccount with
+          bank
+          accountOwner = account.accountOwner
+          balance = account.balance + reward
+
+    nonconsuming choice TransferAtoB : (ContractId BankAccount, ContractId BankAccount)
+      with
+        from : Party
+        to : Party
+        amount : Numeric 2
+      controller bank
+      do
+        mSender <- lookupByKey @BankAccount (bank, from)
+
+        senderCid <- case mSender of
+          Some cid -> return cid
+          None -> abort "Sender account not found"
+
+        senderAccount <- fetch senderCid
+
+        mReceiver <- lookupByKey @BankAccount (bank, to)
+
+        receiverCid <- case mReceiver of
+          Some cid -> return cid
+          None -> abort "Receiver account not found"
+
+        receiverAccount <- fetch receiverCid
+
+        assertMsg "Insufficient funds" (senderAccount.balance >= amount)
+        assertMsg "Cannot transfer to same account" (from /= to)
+
+        archive senderCid
+        archive receiverCid
+
+        newSenderCid <- create BankAccount with
+          bank
+          accountOwner = from
+          balance = senderAccount.balance - amount
+
+        newReceiverCid <- create BankAccount with
+          bank
+          accountOwner = to
+          balance = receiverAccount.balance + amount
+
+        return (newSenderCid, newReceiverCid)

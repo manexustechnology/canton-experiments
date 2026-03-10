@@ -1,0 +1,33 @@
+-- module Main where
+
+-- import Daml.Script
+-- import Bank
+
+-- setup : Script ()
+-- setup = script do
+--   -- allocate parties
+--   bank <- allocatePartyWithHint "Bank" (PartyIdHint "Bank1")
+--   aliceParty <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+--   bobParty <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+--   charlieParty <- allocatePartyWithHint "Charlie" (PartyIdHint "Charlie")
+
+--   -- validate user IDs
+--   bankId <- validateUserId "bank"
+--   aliceId <- validateUserId "alice"
+--   bobId <- validateUserId "bob"
+--   charlieId <- validateUserId "charlie"
+
+--   -- create users
+--   createUser (User bankId (Some bank)) [CanActAs bank]
+
+--   createUser (User aliceId (Some aliceParty)) [CanActAs aliceParty]
+--   createUser (User bobId (Some bobParty)) [CanActAs bobParty]
+--   createUser (User charlieId (Some charlieParty)) [CanActAs charlieParty]
+
+--   -- create BankService contract
+--   submit bank do
+--     createCmd BankService with
+--       bank
+--       customers = [aliceParty, bobParty, charlieParty]
+
+--   return()
