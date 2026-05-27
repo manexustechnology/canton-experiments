@@ -1,0 +1,67 @@
+module Auction where
+
+import DA.Time (RelTime, addRelTime)
+
+-- An open, ascending-price auction.
+-- The auctioneer (`seller`) lists an item; invited `bidders` place bids;
+-- once `closesAt` has passed, the seller calls `Settle` and the highest
+-- bid wins.
+
+data BidInfo = BidInfo
+  with
+    bidder : Party
+    price : Numeric 2
+  deriving (Eq, Show)
+
+template Auction
+  with
+    seller : Party
+    bidders : [Party]
+    itemDescription : Text
+    reservePrice : Numeric 2
+    closesAt : Time
+    highBid : Optional BidInfo
+  where
+    signatory seller
+    observer bidders
+
+    ensure reservePrice >= 0.0
+
+    -- A bidder places a bid. Must strictly exceed the current high (or reserve).
+    choice PlaceBid : ContractId Auction
+      with
+        bidder : Party
+        price : Numeric 2
+      controller bidder
+      do
+        assertMsg "Bidder not invited" (bidder `elem` bidders)
+
+        now <- getTime
+        assertMsg "Auction has closed" (now < closesAt)
+
+        let minimumValid = case highBid of
+              None -> reservePrice
+              Some hb -> hb.price
+        assertMsg "Bid must exceed current high / reserve"
+          (price > minimumValid)
+
+        create this with highBid = Some (BidInfo with bidder; price)
+
+    -- Seller settles after close. Returns the winning BidInfo, or None if
+    -- no bid cleared the reserve.
+    choice Settle : Optional BidInfo
+      controller seller
+      do
+        now <- getTime
+        assertMsg "Auction has not yet closed" (now >= closesAt)
+        return highBid
+
+    -- Before close, seller can extend the deadline by some RelTime.
+    choice Extend : ContractId Auction
+      with
+        by : RelTime
+      controller seller
+      do
+        now <- getTime
+        assertMsg "Auction already closed" (now < closesAt)
+        create this with closesAt = addRelTime closesAt by

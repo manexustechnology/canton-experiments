@@ -1,0 +1,18 @@
+module Cash where
+
+template Cash
+  with
+    issuer : Party
+    owner : Party
+    currency : Text
+    amount : Numeric 2
+  where
+    signatory issuer, owner
+    ensure amount > 0.0
+
+    choice Cash_Transfer : ContractId Cash
+      with
+        newOwner : Party
+      controller owner, newOwner
+      do
+        create this with owner = newOwner

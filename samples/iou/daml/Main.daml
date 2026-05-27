@@ -1,0 +1,48 @@
+module Main where
+
+import Daml.Script
+import Iou
+
+setup : Script ()
+setup = script do
+  bank <- allocatePartyByHint (PartyIdHint "Bank")
+  alice <- allocatePartyByHint (PartyIdHint "Alice")
+  bobParty <- allocatePartyByHint (PartyIdHint "Bob")
+
+  bankId <- validateUserId "bank"
+  aliceId <- validateUserId "alice"
+  bobId <- validateUserId "bob"
+
+  createUser (User bankId (Some bank)) [CanActAs bank]
+  createUser (User aliceId (Some alice)) [CanActAs alice]
+  createUser (User bobId (Some bobParty)) [CanActAs bobParty]
+
+  -- Bank issues a $100 IOU to Alice. Both sign, so they submit together.
+  iou1 <- submitMulti [bank, alice] [] do
+    createCmd Iou with
+      issuer = bank
+      owner = alice
+      currency = "USD"
+      amount = 100.00
+
+  -- Alice splits it: 30 + 70
+  (small, large) <- submit alice do
+    exerciseCmd iou1 Split with splitAmount = 30.00
+
+  -- Alice proposes to transfer the $30 IOU to Bob; Bob accepts.
+  proposal <- submit alice do
+    exerciseCmd small ProposeTransfer with newOwner = bobParty
+  _ <- submit bobParty do
+    exerciseCmd proposal IouTransferProposal_Accept
+
+  -- Demonstrate Merge: bank issues Alice another $50, she merges with her $70.
+  iou2 <- submitMulti [bank, alice] [] do
+    createCmd Iou with
+      issuer = bank
+      owner = alice
+      currency = "USD"
+      amount = 50.00
+  _ <- submit alice do
+    exerciseCmd large Merge with otherCid = iou2
+
+  return ()

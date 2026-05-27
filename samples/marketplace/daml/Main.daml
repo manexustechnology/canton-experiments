@@ -1,0 +1,53 @@
+module Main where
+
+import Daml.Script
+import Asset
+import Cash
+import Trade
+
+setup : Script ()
+setup = script do
+  cb <- allocatePartyByHint (PartyIdHint "CentralBank")
+  registry <- allocatePartyByHint (PartyIdHint "AssetRegistry")
+  alice <- allocatePartyByHint (PartyIdHint "Alice")  -- seller
+  bobParty <- allocatePartyByHint (PartyIdHint "Bob") -- buyer
+
+  cbId <- validateUserId "centralbank"
+  registryId <- validateUserId "registry"
+  aliceId <- validateUserId "alice"
+  bobId <- validateUserId "bob"
+
+  createUser (User cbId (Some cb)) [CanActAs cb]
+  createUser (User registryId (Some registry)) [CanActAs registry]
+  createUser (User aliceId (Some alice)) [CanActAs alice]
+  createUser (User bobId (Some bobParty)) [CanActAs bobParty]
+
+  -- Asset registry issues a painting to Alice (both must sign).
+  paintingCid <- submitMulti [registry, alice] [] do
+    createCmd Asset with
+      issuer = registry
+      owner = alice
+      description = "Painting #42 — 'Untitled Daml'"
+
+  -- Central bank issues $500 cash to Bob.
+  cashCid <- submitMulti [cb, bobParty] [] do
+    createCmd Cash with
+      issuer = cb
+      owner = bobParty
+      currency = "USD"
+      amount = 500.00
+
+  -- Alice proposes the trade.
+  proposal <- submit alice do
+    createCmd TradeProposal with
+      seller = alice
+      buyer = bobParty
+      assetCid = paintingCid
+      currency = "USD"
+      price = 500.00
+
+  -- Bob accepts. Asset and cash change hands atomically.
+  _ <- submit bobParty do
+    exerciseCmd proposal TradeProposal_Accept with cashCid
+
+  return ()

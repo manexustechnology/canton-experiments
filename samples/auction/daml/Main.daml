@@ -1,0 +1,56 @@
+module Main where
+
+import DA.Time (addRelTime, hours, minutes)
+import Daml.Script
+
+import Auction
+
+setup : Script ()
+setup = script do
+  seller <- allocatePartyByHint (PartyIdHint "Seller")
+  alice <- allocatePartyByHint (PartyIdHint "Alice")
+  bobParty <- allocatePartyByHint (PartyIdHint "Bob")
+  charlie <- allocatePartyByHint (PartyIdHint "Charlie")
+
+  sellerId <- validateUserId "seller"
+  aliceId <- validateUserId "alice"
+  bobId <- validateUserId "bob"
+  charlieId <- validateUserId "charlie"
+
+  createUser (User sellerId (Some seller)) [CanActAs seller]
+  createUser (User aliceId (Some alice)) [CanActAs alice]
+  createUser (User bobId (Some bobParty)) [CanActAs bobParty]
+  createUser (User charlieId (Some charlie)) [CanActAs charlie]
+
+  -- The auction closes one hour from "now" in script time.
+  now <- getTime
+  let closesAt = addRelTime now (hours 1)
+
+  auctionCid <- submit seller do
+    createCmd Auction with
+      seller
+      bidders = [alice, bobParty, charlie]
+      itemDescription = "Vintage Daml Compiler T-shirt"
+      reservePrice = 50.00
+      closesAt
+      highBid = None
+
+  -- Alice opens at $60.
+  auctionCid <- submit alice do
+    exerciseCmd auctionCid PlaceBid with bidder = alice; price = 60.00
+  -- Bob bumps to $75.
+  auctionCid <- submit bobParty do
+    exerciseCmd auctionCid PlaceBid with bidder = bobParty; price = 75.00
+  -- Charlie bids $90.
+  auctionCid <- submit charlie do
+    exerciseCmd auctionCid PlaceBid with bidder = charlie; price = 90.00
+
+  -- Advance script time past the close.
+  passTime (minutes 61)
+
+  -- Seller settles.
+  winner <- submit seller do
+    exerciseCmd auctionCid Settle
+
+  debug winner
+  return ()

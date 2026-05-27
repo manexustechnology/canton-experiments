@@ -1,0 +1,42 @@
+module Trade where
+
+import Asset
+import Cash
+
+-- Seller proposes a trade: their AssetCid in exchange for `price` units of `currency`.
+template TradeProposal
+  with
+    seller : Party
+    buyer : Party
+    assetCid : ContractId Asset
+    currency : Text
+    price : Numeric 2
+  where
+    signatory seller
+    observer buyer
+
+    -- Buyer accepts by handing over a Cash contract of matching currency and amount.
+    -- Both transfers happen atomically inside this single choice.
+    choice TradeProposal_Accept : (ContractId Asset, ContractId Cash)
+      with
+        cashCid : ContractId Cash
+      controller buyer
+      do
+        cash <- fetch cashCid
+        assertMsg "Cash owner must be the buyer" (cash.owner == buyer)
+        assertMsg "Currency mismatch" (cash.currency == currency)
+        assertMsg "Amount mismatch" (cash.amount == price)
+
+        -- Atomic delivery vs payment:
+        -- asset moves seller -> buyer, cash moves buyer -> seller.
+        newAssetCid <- exercise assetCid Asset_Transfer with newOwner = buyer
+        newCashCid <- exercise cashCid Cash_Transfer with newOwner = seller
+        return (newAssetCid, newCashCid)
+
+    choice TradeProposal_Reject : ()
+      controller buyer
+      do return ()
+
+    choice TradeProposal_Withdraw : ()
+      controller seller
+      do return ()

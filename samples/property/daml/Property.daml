@@ -18,12 +18,7 @@ template PropertyAccount
         amount : Numeric 2
       controller propertyOwner
       do
-        archive self
-        create this with
-          service
-          propertyOwner
-          contractLink
-          balance = balance + amount
+        create this with balance = balance + amount
 
     choice Withdraw : ContractId PropertyAccount
       with
@@ -31,13 +26,7 @@ template PropertyAccount
       controller propertyOwner
       do
         assertMsg "Insufficient funds" (balance >= amount)
-
-        archive self
-        create this with
-          service
-          propertyOwner
-          contractLink
-          balance = balance - amount
+        create this with balance = balance - amount
 
     nonconsuming choice TransferBalance
       : (ContractId PropertyAccount, ContractId PropertyAccount)
@@ -49,31 +38,18 @@ template PropertyAccount
         assertMsg "Insufficient funds" (balance >= amount)
         assertMsg "Cannot transfer to same owner" (to /= propertyOwner)
 
-        mReceiver <- lookupByKey @PropertyAccount (service, to)
-
-        receiverCid <- case mReceiver of
-          Some cid -> return cid
-          None -> abort "Receiver property account not found"
-
+        receiverCid <- fst <$> fetchByKey @PropertyAccount (service, to)
         receiverAccount <- fetch receiverCid
 
         archive self
         archive receiverCid
 
-        senderCid <- create PropertyAccount with
-          service
-          propertyOwner
-          contractLink
-          balance = balance - amount
+        senderCid <- create this with balance = balance - amount
 
-        newReceiverCid <- create PropertyAccount with
-          service
-          propertyOwner = receiverAccount.propertyOwner
-          contractLink = receiverAccount.contractLink
+        newReceiverCid <- create receiverAccount with
           balance = receiverAccount.balance + amount
 
         return (senderCid, newReceiverCid)
-        
 
 template PropertyService
   with
@@ -83,7 +59,6 @@ template PropertyService
     signatory service
     observer owners
 
-
     nonconsuming choice CreatePropertyAccount : ContractId PropertyAccount
       with
         propertyOwner : Party
@@ -92,7 +67,6 @@ template PropertyService
       controller service
       do
         existing <- lookupByKey @PropertyAccount (service, propertyOwner)
-
         case existing of
           Some cid -> return cid
           None ->
@@ -102,7 +76,6 @@ template PropertyService
               contractLink
               balance = initialBalance
 
-
     nonconsuming choice RewardPropertyOwner : ContractId PropertyAccount
       with
         accountCid : ContractId PropertyAccount
@@ -111,9 +84,4 @@ template PropertyService
       do
         account <- fetch accountCid
         archive accountCid
-
-        create PropertyAccount with
-          service
-          propertyOwner = account.propertyOwner
-          contractLink = account.contractLink
-          balance = account.balance + reward
+        create account with balance = account.balance + reward

@@ -16,20 +16,15 @@ template BankAccount
         amount : Numeric 2
       controller accountOwner
       do
-        create this with
-          bank
-          accountOwner
-          balance = balance + amount
-    
+        create this with balance = balance + amount
+
     choice Withdraw : ContractId BankAccount
       with
         amount : Numeric 2
       controller accountOwner
       do
-        create this with
-          bank
-          accountOwner
-          balance = balance - amount
+        assertMsg "Insufficient funds" (balance >= amount)
+        create this with balance = balance - amount
 
     nonconsuming choice Transfer : (ContractId BankAccount, ContractId BankAccount)
       with
@@ -40,33 +35,19 @@ template BankAccount
         assertMsg "Insufficient funds" (balance >= amount)
         assertMsg "Cannot transfer to same account" (to /= accountOwner)
 
-        mReceiver <- lookupByKey @BankAccount (bank, to)
-
-        receiverCid <- case mReceiver of
-          Some cid -> return cid
-          None -> abort "Receiver does not have an account"
-
+        receiverCid <- fst <$> fetchByKey @BankAccount (bank, to)
         receiverAccount <- fetch receiverCid
-
-        let senderOwner = accountOwner
-        let receiverOwner = receiverAccount.accountOwner
-        let receiverBalance = receiverAccount.balance
 
         archive self
         archive receiverCid
 
-        senderCid <- create BankAccount with
-          bank
-          accountOwner = senderOwner
-          balance = balance - amount
+        senderCid <- create this with balance = balance - amount
 
-        newReceiverCid <- create BankAccount with
-          bank
-          accountOwner = receiverOwner
-          balance = receiverBalance + amount
+        newReceiverCid <- create receiverAccount with
+          balance = receiverAccount.balance + amount
 
         return (senderCid, newReceiverCid)
-        
+
 template BankService
   with
     bank : Party
@@ -81,7 +62,6 @@ template BankService
       controller bank
       do
         existing <- lookupByKey @BankAccount (bank, accountOwner)
-
         case existing of
           Some cid -> return cid
           None ->
@@ -98,11 +78,7 @@ template BankService
       do
         account <- fetch accountCid
         archive accountCid
-
-        create BankAccount with
-          bank
-          accountOwner = account.accountOwner
-          balance = account.balance + reward
+        create account with balance = account.balance + reward
 
     nonconsuming choice TransferAtoB : (ContractId BankAccount, ContractId BankAccount)
       with
@@ -111,36 +87,23 @@ template BankService
         amount : Numeric 2
       controller bank
       do
-        mSender <- lookupByKey @BankAccount (bank, from)
+        assertMsg "Cannot transfer to same account" (from /= to)
 
-        senderCid <- case mSender of
-          Some cid -> return cid
-          None -> abort "Sender account not found"
-
+        senderCid <- fst <$> fetchByKey @BankAccount (bank, from)
         senderAccount <- fetch senderCid
 
-        mReceiver <- lookupByKey @BankAccount (bank, to)
-
-        receiverCid <- case mReceiver of
-          Some cid -> return cid
-          None -> abort "Receiver account not found"
-
+        receiverCid <- fst <$> fetchByKey @BankAccount (bank, to)
         receiverAccount <- fetch receiverCid
 
         assertMsg "Insufficient funds" (senderAccount.balance >= amount)
-        assertMsg "Cannot transfer to same account" (from /= to)
 
         archive senderCid
         archive receiverCid
 
-        newSenderCid <- create BankAccount with
-          bank
-          accountOwner = from
+        newSenderCid <- create senderAccount with
           balance = senderAccount.balance - amount
 
-        newReceiverCid <- create BankAccount with
-          bank
-          accountOwner = to
+        newReceiverCid <- create receiverAccount with
           balance = receiverAccount.balance + amount
 
         return (newSenderCid, newReceiverCid)

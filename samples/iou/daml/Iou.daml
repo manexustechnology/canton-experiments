@@ -1,0 +1,73 @@
+module Iou where
+
+template Iou
+  with
+    issuer : Party
+    owner : Party
+    currency : Text
+    amount : Numeric 2
+  where
+    signatory issuer, owner
+
+    ensure amount > 0.0
+
+    -- Owner proposes to transfer the IOU to a new owner.
+    -- The new owner must accept (see IouTransferProposal) before
+    -- the IOU is reissued in their name, keeping the issuer as co-signatory.
+    choice ProposeTransfer : ContractId IouTransferProposal
+      with
+        newOwner : Party
+      controller owner
+      do
+        create IouTransferProposal with
+          iou = this
+          newOwner
+
+    -- Owner can split an IOU into two of (splitAmount) and (amount - splitAmount).
+    choice Split : (ContractId Iou, ContractId Iou)
+      with
+        splitAmount : Numeric 2
+      controller owner
+      do
+        assertMsg "splitAmount must be positive and smaller than the IOU"
+          (splitAmount > 0.0 && splitAmount < amount)
+        a <- create this with amount = splitAmount
+        b <- create this with amount = amount - splitAmount
+        return (a, b)
+
+    -- Owner can merge two IOUs of the same (issuer, currency) into one.
+    choice Merge : ContractId Iou
+      with
+        otherCid : ContractId Iou
+      controller owner
+      do
+        other <- fetch otherCid
+        assertMsg "Issuers must match" (other.issuer == issuer)
+        assertMsg "Currencies must match" (other.currency == currency)
+        assertMsg "Owners must match" (other.owner == owner)
+        archive otherCid
+        create this with amount = amount + other.amount
+
+template IouTransferProposal
+  with
+    iou : Iou
+    newOwner : Party
+  where
+    signatory (signatory iou)
+    observer newOwner
+
+    -- The new owner accepts; the IOU is reissued in their name.
+    -- The issuer is automatically a co-signatory because they signed the proposal.
+    choice IouTransferProposal_Accept : ContractId Iou
+      controller newOwner
+      do
+        create iou with owner = newOwner
+
+    -- Either side can cancel.
+    choice IouTransferProposal_Reject : ()
+      controller newOwner
+      do return ()
+
+    choice IouTransferProposal_Withdraw : ()
+      controller iou.owner
+      do return ()

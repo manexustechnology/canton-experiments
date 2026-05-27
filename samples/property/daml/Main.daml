@@ -1,0 +1,57 @@
+module Main where
+
+import Daml.Script
+import Property
+
+setup : Script ()
+setup = script do
+  -- allocate parties
+  service <- allocatePartyByHint (PartyIdHint "PropertyService")
+  alice <- allocatePartyByHint (PartyIdHint "Alice")
+  bobParty <- allocatePartyByHint (PartyIdHint "Bob")
+  charlie <- allocatePartyByHint (PartyIdHint "Charlie")
+
+  -- validate user IDs
+  serviceId <- validateUserId "service"
+  aliceId <- validateUserId "alice"
+  bobId <- validateUserId "bob"
+  charlieId <- validateUserId "charlie"
+
+  -- create users
+  createUser (User serviceId (Some service)) [CanActAs service]
+  createUser (User aliceId (Some alice)) [CanActAs alice]
+  createUser (User bobId (Some bobParty)) [CanActAs bobParty]
+  createUser (User charlieId (Some charlie)) [CanActAs charlie]
+
+  -- create the PropertyService contract
+  serviceCid <- submit service do
+    createCmd PropertyService with
+      service
+      owners = [alice, bobParty, charlie]
+
+  -- open property accounts for each owner with an example contract link
+  aliceAcct <- submit service do
+    exerciseCmd serviceCid CreatePropertyAccount with
+      propertyOwner = alice
+      contractLink = "ipfs://alice-deed"
+      initialBalance = 0.00
+  _ <- submit service do
+    exerciseCmd serviceCid CreatePropertyAccount with
+      propertyOwner = bobParty
+      contractLink = "ipfs://bob-deed"
+      initialBalance = 0.00
+  _ <- submit service do
+    exerciseCmd serviceCid CreatePropertyAccount with
+      propertyOwner = charlie
+      contractLink = "ipfs://charlie-deed"
+      initialBalance = 0.00
+
+  -- Alice deposits, then the service transfers a portion to Bob
+  _ <- submit alice do
+    exerciseCmd aliceAcct Deposit with amount = 500.00
+  _ <- submit service do
+    exerciseByKeyCmd @PropertyAccount (service, alice) TransferBalance with
+      to = bobParty
+      amount = 200.00
+
+  return ()

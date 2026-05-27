@@ -1,0 +1,46 @@
+module Main where
+
+import Daml.Script
+import Escrow
+
+setup : Script ()
+setup = script do
+  buyer <- allocatePartyByHint (PartyIdHint "Buyer")
+  seller <- allocatePartyByHint (PartyIdHint "Seller")
+  agent <- allocatePartyByHint (PartyIdHint "EscrowAgent")
+
+  buyerId <- validateUserId "buyer"
+  sellerId <- validateUserId "seller"
+  agentId <- validateUserId "agent"
+
+  createUser (User buyerId (Some buyer)) [CanActAs buyer]
+  createUser (User sellerId (Some seller)) [CanActAs seller]
+  createUser (User agentId (Some agent)) [CanActAs agent]
+
+  let terms = EscrowTerms with
+        buyer
+        seller
+        agent
+        currency = "USD"
+        amount = 1500.00
+        deliverable = "Refurbished laptop, model XPS-13, serial #XYZ"
+
+  -- Buyer proposes.
+  proposal <- submit buyer do
+    createCmd EscrowProposal with terms
+
+  -- Seller accepts.
+  awaiting <- submit seller do
+    exerciseCmd proposal EscrowProposal_AcceptBySeller
+
+  -- Agent accepts; the escrow goes live.
+  escrowCid <- submit agent do
+    exerciseCmd awaiting EscrowAwaitingAgent_AcceptByAgent
+
+  -- (Imagine seller ships the laptop here.)
+
+  -- Agent verifies delivery and releases funds.
+  _ <- submit agent do
+    exerciseCmd escrowCid Release
+
+  return ()

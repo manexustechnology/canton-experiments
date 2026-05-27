@@ -1,0 +1,16 @@
+module Asset where
+
+template Asset
+  with
+    issuer : Party
+    owner : Party
+    description : Text
+  where
+    signatory issuer, owner
+
+    choice Asset_Transfer : ContractId Asset
+      with
+        newOwner : Party
+      controller owner, newOwner
+      do
+        create this with owner = newOwner

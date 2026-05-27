@@ -1,0 +1,95 @@
+module Escrow where
+
+-- Three-party escrow: a buyer pays into an agent-controlled escrow that holds
+-- funds until the agent confirms the seller delivered. The agent never owns
+-- the funds in the application sense — they only have the right to settle
+-- the contract one way (release to seller) or the other (refund to buyer).
+
+data EscrowTerms = EscrowTerms
+  with
+    buyer : Party
+    seller : Party
+    agent : Party
+    currency : Text
+    amount : Numeric 2
+    deliverable : Text     -- free-form description of what the seller owes
+  deriving (Eq, Show)
+
+-- Step 1: buyer proposes the escrow. Seller and agent must both accept.
+template EscrowProposal
+  with
+    terms : EscrowTerms
+  where
+    signatory terms.buyer
+    observer terms.seller, terms.agent
+
+    choice EscrowProposal_AcceptBySeller : ContractId EscrowAwaitingAgent
+      controller terms.seller
+      do
+        create EscrowAwaitingAgent with terms
+
+    choice EscrowProposal_Reject : ()
+      controller terms.seller
+      do return ()
+
+    choice EscrowProposal_Withdraw : ()
+      controller terms.buyer
+      do return ()
+
+-- Step 2: seller has accepted; now the agent confirms they will hold funds.
+-- When the agent accepts, the funds are deemed locked under the agent's control.
+template EscrowAwaitingAgent
+  with
+    terms : EscrowTerms
+  where
+    signatory terms.buyer, terms.seller
+    observer terms.agent
+
+    choice EscrowAwaitingAgent_AcceptByAgent : ContractId Escrow
+      controller terms.agent
+      do
+        create Escrow with terms
+
+    choice EscrowAwaitingAgent_Cancel : ()
+      controller terms.agent
+      do return ()
+
+-- Step 3: active escrow. Agent decides the outcome.
+template Escrow
+  with
+    terms : EscrowTerms
+  where
+    signatory terms.buyer, terms.seller
+    observer terms.agent
+
+    -- Agent confirms delivery; the funds are released to the seller.
+    -- In a fuller model this would exercise a transfer on a Cash contract;
+    -- here we model the outcome as a receipt the seller can hold.
+    choice Release : ContractId SettlementReceipt
+      controller terms.agent
+      do
+        create SettlementReceipt with
+          terms
+          outcome = ReleasedToSeller
+
+    -- Agent confirms non-delivery; the funds go back to the buyer.
+    choice Refund : ContractId SettlementReceipt
+      controller terms.agent
+      do
+        create SettlementReceipt with
+          terms
+          outcome = RefundedToBuyer
+
+data SettlementOutcome
+  = ReleasedToSeller
+  | RefundedToBuyer
+  deriving (Eq, Show)
+
+-- A signed record of how the escrow resolved.
+template SettlementReceipt
+  with
+    terms : EscrowTerms
+    outcome : SettlementOutcome
+  where
+    signatory terms.buyer, terms.seller
+    observer terms.agent

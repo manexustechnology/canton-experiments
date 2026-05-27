@@ -1,0 +1,46 @@
+module Main where
+
+import Daml.Script
+import Bank
+
+setup : Script ()
+setup = script do
+  -- allocate parties
+  bank <- allocatePartyByHint (PartyIdHint "Bank")
+  alice <- allocatePartyByHint (PartyIdHint "Alice")
+  bobParty <- allocatePartyByHint (PartyIdHint "Bob")
+  charlie <- allocatePartyByHint (PartyIdHint "Charlie")
+
+  -- validate user IDs
+  bankId <- validateUserId "bank"
+  aliceId <- validateUserId "alice"
+  bobId <- validateUserId "bob"
+  charlieId <- validateUserId "charlie"
+
+  -- create users
+  createUser (User bankId (Some bank)) [CanActAs bank]
+  createUser (User aliceId (Some alice)) [CanActAs alice]
+  createUser (User bobId (Some bobParty)) [CanActAs bobParty]
+  createUser (User charlieId (Some charlie)) [CanActAs charlie]
+
+  -- create the BankService contract
+  serviceCid <- submit bank do
+    createCmd BankService with
+      bank
+      customers = [alice, bobParty, charlie]
+
+  -- open accounts for each customer
+  aliceAcct <- submit bank do
+    exerciseCmd serviceCid OpenAccount with accountOwner = alice
+  bobAcct <- submit bank do
+    exerciseCmd serviceCid OpenAccount with accountOwner = bobParty
+  _ <- submit bank do
+    exerciseCmd serviceCid OpenAccount with accountOwner = charlie
+
+  -- seed Alice with funds, then transfer some to Bob
+  _ <- submit alice do
+    exerciseCmd aliceAcct Deposit with amount = 1000.00
+  _ <- submit bank do
+    exerciseCmd serviceCid TransferAtoB with from = alice; to = bobParty; amount = 250.00
+
+  return ()
