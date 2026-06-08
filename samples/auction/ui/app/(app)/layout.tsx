@@ -1,0 +1,19 @@
+/**
+ * App shell — sidebar + topbar around the routed page content. Lives in
+ * a route group so it wraps every page without adding a path segment.
+ */
+
+import { Sidebar } from '@/components/layout/sidebar';
+import { Topbar } from '@/components/layout/topbar';
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-dvh">
+      <Sidebar />
+      <div className="flex-1 min-w-0 flex flex-col">
+        <Topbar />
+        <main className="flex-1 px-6 lg:px-8 py-8 max-w-[1200px] w-full mx-auto">{children}</main>
+      </div>
+    </div>
+  );
+}

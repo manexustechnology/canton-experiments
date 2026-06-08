@@ -1,0 +1,19 @@
+/**
+ * App stylesheet — pulls in the vendored Tenzro token layer (which
+ * itself @imports "tailwindcss"), then binds the Geist font variables.
+ */
+@import "./tenzro-tokens.css";
+
+@layer base {
+  :root {
+    font-family: var(--font-geist-sans), var(--font-sans);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+}

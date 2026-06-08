@@ -1,0 +1,19 @@
+-- Minimal init for running the Auction UI against a live Canton sandbox.
+--
+-- Unlike Main:setup (which runs a full scripted scenario that uses
+-- `passTime` — unsupported on the wall-clock sandbox `daml start` uses),
+-- this just allocates the four parties the app acts as. The app itself
+-- lists items, places bids, and settles, so no on-ledger scenario is
+-- needed here. Point daml.yaml's `init-script` at Setup:setup to use it.
+
+module Setup where
+
+import Daml.Script
+
+setup : Script ()
+setup = script do
+  _ <- allocatePartyByHint (PartyIdHint "Seller")
+  _ <- allocatePartyByHint (PartyIdHint "Alice")
+  _ <- allocatePartyByHint (PartyIdHint "Bob")
+  _ <- allocatePartyByHint (PartyIdHint "Charlie")
+  pure ()
