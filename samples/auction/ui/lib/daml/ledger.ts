@@ -6,8 +6,9 @@
  */
 
 import { CantonLedger } from './canton-adapter';
-import { USING_LIVE_LEDGER } from './config';
+import { USING_LIVE_LEDGER, ledgerBackend } from './config';
 import { mockLedger } from './mock-ledger';
+import { TenzroSdkLedger } from './tenzro-sdk-ledger';
 import type {
   AuctionContract,
   BidInfo,
@@ -40,13 +41,19 @@ export class LedgerError extends Error {
 }
 
 let live: CantonLedger | null = null;
+let tenzro: TenzroSdkLedger | null = null;
 
 export function getLedger(): Ledger {
-  if (USING_LIVE_LEDGER) {
-    live ??= new CantonLedger();
-    return live;
+  switch (ledgerBackend()) {
+    case 'tenzro':
+      // Hosted node via the Tenzro TS SDK — drives the uploaded DAR.
+      return (tenzro ??= new TenzroSdkLedger());
+    case 'canton':
+      // Co-located participant via the raw Canton JSON Ledger API v2.
+      return (live ??= new CantonLedger());
+    default:
+      return mockLedger;
   }
-  return mockLedger;
 }
 
 export { USING_LIVE_LEDGER };

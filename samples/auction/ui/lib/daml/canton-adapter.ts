@@ -153,7 +153,7 @@ export class CantonLedger implements Ledger {
   async createAuction(actingParty: string, args: CreateAuctionArgs): Promise<AuctionContract> {
     const createArguments: AuctionPayload = {
       seller: partyId(actingParty),
-      bidders: args.bidders.map(partyId),
+      bidders: args.bidders.map((b) => partyId(b)),
       itemDescription: args.itemDescription,
       reservePrice: args.reservePrice,
       closesAt: args.closesAt,

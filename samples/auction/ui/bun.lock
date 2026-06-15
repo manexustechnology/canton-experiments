@@ -15,6 +15,7 @@
         "react-dom": "^19.0.0",
         "sonner": "^1.7.1",
         "tailwind-merge": "^2.6.0",
+        "tenzro-sdk": "^0.4.2",
         "zod": "^3.24.1",
       },
       "devDependencies": {
@@ -235,6 +236,8 @@
     "tailwindcss": ["tailwindcss@4.3.0", "", {}, "sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q=="],
 
     "tapable": ["tapable@2.3.3", "", {}, "sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A=="],
+
+    "tenzro-sdk": ["tenzro-sdk@0.4.5", "", {}, "sha512-QBo5aq7mzkv8QAiHQl016F5a41fBMTovCj7bM8tHmdocfogGe7Q1x1lNobt6rtJin49Qik++xkhJmMz3qJCKEg=="],
 
     "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
